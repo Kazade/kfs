@@ -22,3 +22,9 @@ Currently only posix is supported, but I hope to add windows support in future.
 
     auto path = kfs::join("/some/path", "some_file");
 ```
+
+## Erm... why?
+
+I was originally using boost::filesystem for all of my file access stuff but I wanted to drop that dependency to make my
+app more portable. I wanted an abstraction over just using posix directly, and given that I code Python in my day job it made
+sense to base it on Python's API.
