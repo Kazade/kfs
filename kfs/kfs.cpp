@@ -1,5 +1,7 @@
 #include <fstream>
-
+#include <sstream>
+#include <string>
+#include <cassert>
 #include "kfs.h"
 
 #ifdef WIN32
@@ -24,10 +26,6 @@ static std::string slice(const std::string& input, uint32_t start, void* end=nul
 
 static std::string slice(const std::string &input, void* start, uint32_t end) {
     return std::string(input.begin(), input.begin() + end);
-}
-
-static std::string slice(const std::string& input, uint32_t start, uint32_t end) {
-    return std::string(input.begin() + start, input.begin() + end);
 }
 
 static std::string multiply(const std::string& input, const uint32_t count) {
@@ -57,22 +55,18 @@ static std::string str_join(const std::string& joiner, const std::vector<std::st
 }
 
 static std::vector<std::string> str_split(const std::string& input, const std::string& on) {
-    std::vector<std::string> result;
-    auto it = input.find(on);
-    auto start = 0;
-    while(it != std::string::npos) {
-        auto part = input.substr(start, it - start);
-        if(!part.empty()) {
-            result.push_back(part);
-        }
-        start = it;
-        it = input.find(on, start);
+    std::vector<std::string> elems;
+    std::stringstream ss(input);
+    std::string item;
+
+    assert(on.length() == 1);
+
+    while (std::getline(ss, item, on[0])) {
+        if(item.empty()) continue;
+
+        elems.push_back(item);
     }
-    auto part = input.substr(start, input.size() - start);
-    if(!part.empty()) {
-        result.push_back(part);
-    }
-    return result;
+    return elems;
 }
 
 static std::vector<std::string> common_prefix(const std::vector<std::string>& lhs, const std::vector<std::string>& rhs) {
@@ -83,7 +77,7 @@ static std::vector<std::string> common_prefix(const std::vector<std::string>& lh
     auto shorter = (lhs.size() < rhs.size()) ? lhs: rhs;
     auto longer = (lhs.size() > rhs.size()) ? lhs: rhs;
 
-    for(int i = 0; i < shorter.size(); ++i) {
+    for(std::vector<std::string>::size_type i = 0; i < shorter.size(); ++i) {
         if(shorter[i] != longer[i]) {
             return std::vector<std::string>(shorter.begin(), shorter.begin() + i);
         }
@@ -220,6 +214,37 @@ std::string temp_dir() {
     return "/tmp";
 }
 
+Path exe_path() {
+#ifdef WIN32
+    assert(0 && "Not implemented");
+#else
+    char buff[1024];
+    ssize_t len = ::readlink("/proc/self/exe", buff, sizeof(buff)-1);
+    if(len != -1) {
+        buff[len] = '\0';
+        return Path(buff);
+    }
+
+    throw std::runtime_error("Unable to work out the program filename");
+#endif
+}
+
+Path exe_dirname() {
+    Path path = exe_path();
+    return path::dir_name(path);
+}
+
+Path get_cwd(){
+    char buf[FILENAME_MAX];
+    char* succ = getcwd(buf, FILENAME_MAX);
+
+    if(succ) {
+        return Path(succ);
+    }
+
+    throw std::runtime_error("Unable to get the current working directory");
+}
+
 
 namespace path {
 
@@ -239,17 +264,6 @@ Path join(const std::vector<Path>& parts) {
     }
 
     return ret;
-}
-
-Path get_cwd(){
-    char buf[FILENAME_MAX];
-    char* succ = getcwd(buf, FILENAME_MAX);
-
-    if(succ) {
-        return Path(succ);
-    }
-
-    throw std::runtime_error("Unable to get the current working directory");
 }
 
 Path abs_path(const Path& p) {
@@ -402,7 +416,7 @@ Path rel_path(const Path& path, const Path& start) {
     Path pardir = "..";
 
     std::vector<Path> result;
-    for(int j = 0; j < (start_list.size() - i); ++j) {
+    for(std::vector<std::string>::size_type j = 0; j < (start_list.size() - i); ++j) {
         result.push_back(pardir);
     }
 
@@ -489,29 +503,10 @@ std::string read_file_contents(const Path& path) {
     return str;
 }
 
-Path exe_path() {
-#ifdef WIN32
-    assert(0 && "Not implemented");
-#else
-    char buff[1024];
-    ssize_t len = ::readlink("/proc/self/exe", buff, sizeof(buff)-1);
-    if(len != -1) {
-        buff[len] = '\0';
-        return Path(buff);
-    }
-
-    throw std::runtime_error("Unable to work out the program filename");
-#endif
-}
-
-Path exe_dirname() {
-    Path path = exe_path();
-    return path::dir_name(path);
-}
 
 std::pair<Path, Path> split_ext(const Path& path) {
-    int64_t sep_index = (int64_t) path.rfind(SEP);
-    int64_t dot_index = (int64_t) path.rfind(".");
+    auto sep_index = path.rfind(SEP);
+    auto dot_index = path.rfind(".");
 
     if(sep_index == Path::npos) {
         sep_index = -1;
