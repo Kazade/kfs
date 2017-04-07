@@ -533,5 +533,21 @@ std::pair<Path, Path> split_ext(const Path& path) {
 
 }
 
+std::string IOError::get_message(int err) {
+    switch(err) {
+    case EEXIST: return "File or folder already exists";
+    case ELOOP: return "Loop exists in symbolic links";
+    case EACCES: return "Permission denied";
+    case EMLINK: return "Exceeded link count of the parent directory";
+    case ENAMETOOLONG: return "Path is too long, exceeded PATH_MAX";
+    case ENOENT: return "Path was invalid";
+    case ENOSPC: return "Not enough disk space";
+    case ENOTDIR: return "Not a directory";
+    case EROFS: return "Read-only filesystem";
+    default:
+        return "Unspecified error";
+    }
+}
+
 
 }
