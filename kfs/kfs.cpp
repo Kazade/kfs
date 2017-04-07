@@ -6,6 +6,8 @@
 
 #ifdef WIN32
 #error "Must implement windows support"
+#elif defined(__APPLE__)
+#include <unistd.h>
 #else
 #include <utime.h>
 #include <unistd.h>
