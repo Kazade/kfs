@@ -217,6 +217,15 @@ std::string temp_dir() {
 Path exe_path() {
 #ifdef WIN32
     assert(0 && "Not implemented");
+#elif defined(__APPLE__)
+    char buff[1024];
+    uint32_t size = sizeof(buff);
+
+    if(_NSGetExecutablePath(buff, &size) == 0) {
+        return Path(buff);
+    }
+
+    throw std::runtime_error("Unable to work out the program filename");
 #else
     char buff[1024];
     ssize_t len = ::readlink("/proc/self/exe", buff, sizeof(buff)-1);
