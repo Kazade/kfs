@@ -130,7 +130,7 @@ void make_link(const Path& source, const Path& dest) {
     }
 }
 
-void make_dirs(const Path &path, mode_t mode) {
+void make_dirs(const Path &path, Mode mode) {
     std::pair<Path, Path> res = kfs::path::split(path);
 
     Path head = res.first;
