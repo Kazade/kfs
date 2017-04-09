@@ -13,6 +13,10 @@
 #include <dirent.h>
 #endif
 
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
+
 
 namespace kfs {
 
