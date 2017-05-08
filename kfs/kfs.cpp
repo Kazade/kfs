@@ -93,12 +93,28 @@ static std::vector<std::string> common_prefix(const std::vector<std::string>& lh
 // =================== END UTILITY FUNCTIONS ======================================================
 // ================================================================================================
 
-struct ::stat lstat(const Path& path) {
+stat lstat(const Path& path) {
     struct ::stat result;
     if(::lstat(path.c_str(), &result) == -1) {
         throw IOError(errno);
     }
-    return result;
+
+    stat ret;
+    ret.atime = result.st_atime;
+    ret.blksize = result.st_blksize;
+    ret.blocks = result.st_blocks;
+    ret.ctime = result.st_ctime;
+    ret.dev = result.st_dev;
+    ret.gid = result.st_gid;
+    ret.ino = result.st_ino;
+    ret.mode = result.st_mode;
+    ret.mtime = result.st_mtime;
+    ret.nlink = result.st_nlink;
+    ret.rdev = result.st_rdev;
+    ret.size = result.st_size;
+    ret.uid = result.st_uid;
+
+    return ret;
 }
 
 void touch(const Path& path) {
@@ -112,7 +128,7 @@ void touch(const Path& path) {
     struct utimbuf new_times;
     struct stat st = kfs::lstat(path);
 
-    new_times.actime = st.st_atime;
+    new_times.actime = st.atime;
     new_times.modtime = time(NULL);
     utime(path.c_str(), &new_times);
 }
@@ -381,7 +397,7 @@ bool is_dir(const Path& path) {
         return false;
     }
 
-    return S_ISDIR(st.st_mode);
+    return S_ISDIR(st.mode);
 }
 
 bool is_file(const Path& path) {
@@ -392,7 +408,7 @@ bool is_file(const Path& path) {
         return false;
     }
 
-    return S_ISREG(st.st_mode);
+    return S_ISREG(st.mode);
 }
 
 bool is_link(const Path& path) {
@@ -403,7 +419,7 @@ bool is_link(const Path& path) {
         return false;
     }
 
-    return S_ISLNK(st.st_mode);
+    return S_ISLNK(st.mode);
 }
 
 Path real_path(const Path& path) {
