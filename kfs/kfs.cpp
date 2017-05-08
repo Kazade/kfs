@@ -4,7 +4,9 @@
 #include <cassert>
 #include "kfs.h"
 
-#ifdef WIN32
+#ifdef _arch_dreamcast
+#include <kos.h>
+#elif defined(WIN32)
 #error "Must implement windows support"
 #else
 #include <utime.h>
@@ -95,9 +97,16 @@ static std::vector<std::string> common_prefix(const std::vector<std::string>& lh
 
 stat lstat(const Path& path) {
     struct ::stat result;
+
+#ifdef _arch_dreamcast
+    if(fs_stat(path.c_str(), &result, 0) == -1) {
+        throw IOError(1);
+    }
+#else
     if(::lstat(path.c_str(), &result) == -1) {
         throw IOError(errno);
     }
+#endif
 
     stat ret;
     ret.atime = result.st_atime;
@@ -126,7 +135,7 @@ void touch(const Path& path) {
     }
 
     struct utimbuf new_times;
-    struct stat st = kfs::lstat(path);
+    auto st = kfs::lstat(path);
 
     new_times.actime = st.atime;
     new_times.modtime = time(NULL);
