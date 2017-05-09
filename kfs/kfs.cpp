@@ -6,6 +6,9 @@
 
 #ifdef _arch_dreamcast
 #include <kos.h>
+
+#define EEXIST 1
+
 #elif defined(WIN32)
 #error "Must implement windows support"
 #else
@@ -127,6 +130,9 @@ stat lstat(const Path& path) {
 }
 
 void touch(const Path& path) {
+#ifdef _arch_dreamcast
+    throw std::logic_error("Not implemented");
+#else
     if(!kfs::path::exists(path)) {
         make_dirs(kfs::path::dir_name(path));
 
@@ -140,23 +146,40 @@ void touch(const Path& path) {
     new_times.actime = st.atime;
     new_times.modtime = time(NULL);
     utime(path.c_str(), &new_times);
+#endif
 }
 
 void make_dir(const Path& path, Mode mode) {
     if(kfs::path::exists(path)) {
         throw kfs::IOError(EEXIST);
     } else {
+
+#ifdef _arch_dreamcast
+        int ret = fs_mkdir(path.c_str());
+        if(ret != 0) {
+            throw kfs::IOError("Error creating directory");
+        }
+#else
         if(mkdir(path.c_str(), mode) != 0) {
             throw kfs::IOError(errno);
         }
+#endif
     }
 }
 
 void make_link(const Path& source, const Path& dest) {
+#ifdef _arch_dreamcast
+    int ret = fs_symlink(source.c_str(), dest.c_str());
+    if(ret != 0) {
+        throw IOError("Unable to make symlink");
+    }
+#else
     int ret = ::symlink(source.c_str(), dest.c_str());
     if(ret != 0) {
         throw IOError(errno);
     }
+#endif
+
 }
 
 void make_dirs(const Path &path, Mode mode) {
@@ -175,8 +198,8 @@ void make_dirs(const Path &path, Mode mode) {
         try {
             make_dirs(head, mode);
         } catch(kfs::IOError& e) {
-            if(e.err != EEXIST) {
-                //Someone already created the directory
+            //Only ignore errors if someone already created the directory
+            if(e.err != EEXIST) {                
                 throw;
             }
         }
@@ -206,9 +229,15 @@ void remove_dir(const Path& path) {
     }
 
     if(kfs::path::list_dir(path).empty()) {
+#ifdef _arch_dreamcast
+        if(fs_rmdir(path.c_str()) != 0) {
+            throw IOError("Unable to remove directory");
+        }
+#else
         if(rmdir(path.c_str()) != 0) {
             throw IOError(errno);
         }
+#endif
     } else {
         throw IOError("Tried to remove a non-empty directory");
     }
@@ -231,9 +260,15 @@ void remove_dirs(const Path& path) {
 }
 
 void rename(const Path& old, const Path& new_path) {
+#ifdef _arch_dreamcast
+    if(fs_rename(old.c_str(), new_path.c_str()) != 0) {
+        throw IOError("Couldn't rename file");
+    }
+#else
     if(::rename(old.c_str(), new_path.c_str()) != 0) {
         throw IOError(errno);
     }
+#endif
 }
 
 std::string temp_dir() {
@@ -432,6 +467,9 @@ bool is_link(const Path& path) {
 }
 
 Path real_path(const Path& path) {
+#ifdef _arch_dreamcast
+    throw std::logic_error("Not implemented");
+#else
     char *real_path = realpath(path.c_str(), NULL);
     if(!real_path) {
         return Path();
@@ -439,6 +477,7 @@ Path real_path(const Path& path) {
     Path result(real_path);
     free(real_path);
     return result;
+#endif
 }
 
 Path rel_path(const Path& path, const Path& start) {
@@ -466,6 +505,7 @@ Path rel_path(const Path& path, const Path& start) {
     return path::join(result);
 }
 
+#ifndef _arch_dreamcast
 static Path get_env_var(const Path& name) {
     char* env = getenv(name.c_str());
     if(env) {
@@ -474,8 +514,12 @@ static Path get_env_var(const Path& name) {
 
     return Path();
 }
+#endif
 
 Path expand_user(const Path& path) {
+#ifdef _arch_dreamcast
+    return path;
+#else
     Path cp = path;
 
     if(!starts_with(path, "~")) {
@@ -483,7 +527,7 @@ Path expand_user(const Path& path) {
     }
 
 #ifdef WIN32
-#error "Needs implementing"
+    #error "Needs implementing"
 #else
     Path home = get_env_var("HOME");
 #endif
@@ -494,11 +538,15 @@ Path expand_user(const Path& path) {
 
     cp.replace(cp.find("~"), 1, home);
     return cp;
+#endif
 }
 
 void hide_dir(const Path &path) {
 #ifdef WIN32
     assert(0 && "Not Implemented");
+#elif defined(_arch_dreamcast)
+    // No-op on Dreamcast
+    return;
 #else
     //On Unix systems, prefix with a dot
     std::pair<Path, Path> parts = path::split(path);
@@ -514,6 +562,8 @@ std::vector<Path> list_dir(const Path& path) {
     std::vector<Path> result;
 #ifdef WIN32
     assert(0 && "Not implemented");
+#elif defined(_arch_dreamcast)
+    throw std::logic_error("Not implemented");
 #else
     if(!is_dir(path)) {
         throw IOError(errno);
@@ -571,6 +621,7 @@ std::pair<Path, Path> split_ext(const Path& path) {
 
 }
 
+#ifndef _arch_dreamcast
 std::string IOError::get_message(int err) {
     switch(err) {
     case EEXIST: return "File or folder already exists";
@@ -586,6 +637,7 @@ std::string IOError::get_message(int err) {
         return "Unspecified error";
     }
 }
+#endif
 
 
 }
