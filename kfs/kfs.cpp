@@ -637,6 +637,10 @@ std::string IOError::get_message(int err) {
         return "Unspecified error";
     }
 }
+#else
+std::string IOError::get_message(int err) {
+    return "Unspecified error";
+}
 #endif
 
 
