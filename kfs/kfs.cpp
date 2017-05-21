@@ -290,6 +290,11 @@ Path exe_path() {
     }
 
     throw std::runtime_error("Unable to work out the program filename");
+#elif defined(_arch_dreamcast)
+    /* The Dreamcast binary is always called 1ST_READ.BIN, and it makes sense to
+     * say that it's in the root of the tree (it is essentially)
+     */
+    return "/1ST_READ.BIN";
 #else
     char buff[1024];
     ssize_t len = ::readlink("/proc/self/exe", buff, sizeof(buff)-1);
