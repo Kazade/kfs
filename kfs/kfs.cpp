@@ -5,10 +5,9 @@
 #include "kfs.h"
 
 #ifdef _arch_dreamcast
-#include <kos.h>
-
-#define EEXIST 1
-
+    #include <kos.h>
+    #include <dirent.h>
+    #define EEXIST 1
 #elif defined(WIN32)
 #error "Must implement windows support"
 #else
@@ -567,11 +566,13 @@ std::vector<Path> list_dir(const Path& path) {
     std::vector<Path> result;
 #ifdef WIN32
     assert(0 && "Not implemented");
-#elif defined(_arch_dreamcast)
-    throw std::logic_error("Not implemented");
 #else
     if(!is_dir(path)) {
+#ifdef _arch_dreamcast
+        throw IOError("Path was not a directory");
+#else
         throw IOError(errno);
+#endif
     }
 
     DIR* dirp = opendir(path.c_str());
