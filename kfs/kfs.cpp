@@ -1,13 +1,14 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <iostream>
 #include <cassert>
 #include "kfs.h"
 
 #ifdef _arch_dreamcast
     #include <kos.h>
     #include <dirent.h>
-    #define EEXIST 1
+    #include <errno.h>
 #elif defined(WIN32)
 #error "Must implement windows support"
 #else
@@ -100,17 +101,12 @@ static std::vector<std::string> common_prefix(const std::vector<std::string>& lh
 stat lstat(const Path& path) {
     struct ::stat result;
 
-#ifdef _arch_dreamcast
-    if(fs_stat(path.c_str(), &result, 0) == -1) {
-        throw IOError(1);
-    }
-#else
-    if(::lstat(path.c_str(), &result) == -1) {
+    if(::stat(path.c_str(), &result) == -1) {
         throw IOError(errno);
     }
-#endif
 
     stat ret;
+
     ret.atime = result.st_atime;
     ret.blksize = result.st_blksize;
     ret.blocks = result.st_blocks;
