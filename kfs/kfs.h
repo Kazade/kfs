@@ -6,8 +6,8 @@
 #include <stdexcept>
 #include <cstdint>
 
-#ifdef WIN32
-    #error "Must implement windows support";
+#ifdef __WIN32__
+    //#error "Must implement windows support";
 #else
     #include <sys/stat.h>
 #endif
@@ -30,7 +30,7 @@ private:
     static std::string get_message(int err);
 };
 
-#ifdef WIN32
+#ifdef __WIN32__
     const std::string SEP = "\\";
 #else
     const std::string SEP = "/";
@@ -38,6 +38,13 @@ private:
 
 typedef std::string Path;
 typedef uint32_t Mode;
+
+#ifdef __WIN32__
+    // Windows doesn't support Posix
+    typedef uint32_t nlink_t;
+    typedef uint32_t uid_t;
+    typedef uint32_t gid_t;
+#endif
 
 struct stat {
     dev_t     dev;     /* ID of device containing file */
