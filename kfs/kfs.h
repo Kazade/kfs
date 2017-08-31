@@ -46,7 +46,7 @@ typedef uint32_t Mode;
     typedef uint32_t gid_t;
 #endif
 
-struct stat {
+struct Stat {
     dev_t     dev;     /* ID of device containing file */
     ino_t     ino;     /* inode number */
     mode_t    mode;    /* protection */
@@ -55,14 +55,12 @@ struct stat {
     gid_t     gid;     /* group ID of owner */
     dev_t     rdev;    /* device ID (if special file) */
     off_t     size;    /* total size, in bytes */
-    uint32_t blksize; /* blocksize for file system I/O */
-    uint32_t  blocks;  /* number of 512B blocks allocated */
     uint32_t  atime;   /* time of last access */
     uint32_t  mtime;   /* time of last modification */
     uint32_t  ctime;   /* time of last status change */
 };
 
-stat lstat(const Path& path);
+Stat lstat(const Path& path);
 
 void touch(const Path& path);
 void rename(const Path& old, const std::string& new_path);

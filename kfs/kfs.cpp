@@ -9,13 +9,17 @@
     #include <kos.h>
     #include <dirent.h>
     #include <errno.h>
-#elif defined(WIN32)
-#error "Must implement windows support"
+#elif defined(__WIN32__)
+    #include <windows.h>
+    #include <sys/types.h>
+    #include <sys/stat.h>
+    #include <userenv.h>
 #else
-#include <utime.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <dirent.h>
+    // Yay POSIX
+    #include <utime.h>
+    #include <unistd.h>
+    #include <sys/types.h>
+    #include <dirent.h>
 #endif
 
 #ifdef __APPLE__
@@ -98,18 +102,16 @@ static std::vector<std::string> common_prefix(const std::vector<std::string>& lh
 // =================== END UTILITY FUNCTIONS ======================================================
 // ================================================================================================
 
-stat lstat(const Path& path) {
-    struct ::stat result;
+Stat lstat(const Path& path) {
+    Stat ret;
 
-    if(::stat(path.c_str(), &result) == -1) {
+#ifdef __WIN32__
+    struct _stat result;
+    if(_stat(path.c_str(), &result) == -1) {
         throw IOError(errno);
     }
 
-    stat ret;
-
     ret.atime = result.st_atime;
-    ret.blksize = result.st_blksize;
-    ret.blocks = result.st_blocks;
     ret.ctime = result.st_ctime;
     ret.dev = result.st_dev;
     ret.gid = result.st_gid;
@@ -120,13 +122,52 @@ stat lstat(const Path& path) {
     ret.rdev = result.st_rdev;
     ret.size = result.st_size;
     ret.uid = result.st_uid;
+#else
+    struct ::stat result;
 
+    if(::stat(path.c_str(), &result) == -1) {
+        throw IOError(errno);
+    }
+
+    ret.atime = result.st_atime;
+    ret.ctime = result.st_ctime;
+    ret.dev = result.st_dev;
+    ret.gid = result.st_gid;
+    ret.ino = result.st_ino;
+    ret.mode = result.st_mode;
+    ret.mtime = result.st_mtime;
+    ret.nlink = result.st_nlink;
+    ret.rdev = result.st_rdev;
+    ret.size = result.st_size;
+    ret.uid = result.st_uid;
+#endif
     return ret;
 }
 
 void touch(const Path& path) {
 #ifdef _arch_dreamcast
     throw std::logic_error("Not implemented");
+#elif __WIN32__
+    auto handle = CreateFile(
+        path.c_str(),
+        FILE_WRITE_ATTRIBUTES,
+        0,
+        NULL,
+        CREATE_NEW,
+        FILE_ATTRIBUTE_NORMAL,
+        NULL
+    );
+
+    FILETIME ft;
+    SYSTEMTIME st;
+    GetSystemTime(&st);
+    SystemTimeToFileTime(&st, &ft);
+
+    if(handle != INVALID_HANDLE_VALUE) {
+        SetFileTime(handle, NULL, NULL, &ft);
+    }
+
+    CloseHandle(handle);
 #else
     if(!kfs::path::exists(path)) {
         make_dirs(kfs::path::dir_name(path));
@@ -434,7 +475,7 @@ bool is_absolute(const Path& path) {
 }
 
 bool is_dir(const Path& path) {
-    struct stat st;
+    Stat st;
     try {
         st = lstat(path);
     } catch(IOError& e) {
@@ -445,7 +486,7 @@ bool is_dir(const Path& path) {
 }
 
 bool is_file(const Path& path) {
-    struct stat st;
+    Stat st;
     try {
         st = lstat(path);
     } catch(IOError& e) {
@@ -456,7 +497,7 @@ bool is_file(const Path& path) {
 }
 
 bool is_link(const Path& path) {
-    struct stat st;
+    Stat st;
     try {
         st = lstat(path);
     } catch(IOError& e) {
@@ -526,8 +567,24 @@ Path expand_user(const Path& path) {
         return path;
     }
 
-#ifdef WIN32
-    #error "Needs implementing"
+#ifdef __WIN32__
+    auto get_home = []() -> Path {
+        HANDLE hToken;
+        DWORD buflen = 512;
+        char buff[512];
+
+        if(!OpenProcessToken(GetCurrentProcess(), TOKEN_READ, &hToken))
+            return "";
+
+        if(!GetUserProfileDirectory(hToken, buff, &buflen))
+            return "";
+
+        CloseHandle(hToken);
+        return std::string(buff, buff + buflen);
+    };
+
+    Path home = get_home();
+
 #else
     Path home = get_env_var("HOME");
 #endif
