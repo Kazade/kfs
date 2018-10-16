@@ -1,3 +1,6 @@
+#define WINVER 0x0600
+#define _WIN32_WINNT 0x0600
+
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -215,7 +218,9 @@ void make_link(const Path& source, const Path& dest) {
         throw IOError("Unable to make symlink");
     }
 #elif __WIN32__
-    throw IOError("Unable to make symlink");
+    if(!CreateSymbolicLinkA(source.c_str(), dest.c_str(), 0) == 0) {
+        throw IOError(GetLastError());
+    }
 #else
     int ret = ::symlink(source.c_str(), dest.c_str());
     if(ret != 0) {
@@ -517,6 +522,10 @@ bool is_file(const Path& path) {
 }
 
 bool is_link(const Path& path) {
+
+#ifdef __WIN32__
+    return GetFileAttributesA(path.c_str()) == FILE_ATTRIBUTE_REPARSE_POINT;
+#else
     Stat st;
     try {
         st = lstat(path);
@@ -533,6 +542,15 @@ bool is_link(const Path& path) {
 Path real_path(const Path& path) {
 #ifdef _arch_dreamcast
     throw std::logic_error("Not implemented");
+#elif __WIN32__
+    constexpr unsigned size = 8192;
+    char buffer[size];
+    DWORD retval = GetFullPathName(path.c_str(), size, buffer, nullptr);
+    if(!retval) {
+        return Path();
+    }
+
+    return buffer;
 #else
     char *real_path = realpath(path.c_str(), NULL);
     if(!real_path) {
@@ -570,6 +588,7 @@ Path rel_path(const Path& path, const Path& start) {
 }
 
 #ifndef _arch_dreamcast
+#ifndef __WIN32__
 static Path get_env_var(const Path& name) {
     char* env = getenv(name.c_str());
     if(env) {
@@ -578,6 +597,7 @@ static Path get_env_var(const Path& name) {
 
     return Path();
 }
+#endif
 #endif
 
 Path expand_user(const Path& path) {
