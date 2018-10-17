@@ -320,7 +320,7 @@ void rename(const Path& old, const Path& new_path) {
 }
 
 std::string temp_dir() {
-#ifdef WIN32
+#ifdef __WIN32__
     assert(0 && "NotImplemented");
 #endif
     return "/tmp";
@@ -333,7 +333,7 @@ char *f(const wchar_t *wcs) {
 }
 
 Path exe_path() {
-#ifdef WIN32
+#ifdef __WIN32__
     HMODULE hModule = GetModuleHandleW(NULL);
     WCHAR path[MAX_PATH];
     GetModuleFileNameW(hModule, path, MAX_PATH);
@@ -532,11 +532,8 @@ bool is_link(const Path& path) {
     } catch(IOError& e) {
         return false;
     }
-    #ifdef WIN32
-    return false;
-    #else 
     return S_ISLNK(st.mode);
-    #endif
+#endif
 }
 
 Path real_path(const Path& path) {
@@ -642,7 +639,7 @@ Path expand_user(const Path& path) {
 }
 
 void hide_dir(const Path &path) {
-#ifdef WIN32
+#ifdef __WIN32__
     return;//assert(0 && "Not Implemented");
 #elif defined(_arch_dreamcast)
     // No-op on Dreamcast
@@ -660,7 +657,7 @@ void hide_dir(const Path &path) {
 
 std::vector<Path> list_dir(const Path& path) {
     std::vector<Path> result;
-#ifdef WIN32
+#ifdef __WIN32__
     std::string pattern(path.c_str());
     pattern.append("\\*");
     WIN32_FIND_DATA data;
