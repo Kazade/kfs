@@ -17,6 +17,7 @@
     #include <sys/types.h>
     #include <sys/stat.h>
     #include <userenv.h>
+    #include "realpath.h"
 #else
     // Yay POSIX
     #include <utime.h>
@@ -216,7 +217,7 @@ void make_link(const Path& source, const Path& dest) {
     if(ret != 0) {
         throw IOError("Unable to make symlink");
     }
-#elif __WIN32__
+#elif defined(__WIN32__)
     if(!CreateSymbolicLinkA(source.c_str(), dest.c_str(), 0) == 0) {
         throw IOError(GetLastError());
     }
@@ -411,7 +412,7 @@ Path norm_case(const Path& path) {
 }
 
 Path norm_path(const Path& path) {
-    Path slash = "/";
+    Path slash = Path(SEP);
     Path dot = ".";
 
     if(path.empty()) {
@@ -484,7 +485,11 @@ Path dir_name(const Path& path) {
 }
 
 bool is_absolute(const Path& path) {
-    return starts_with(path, "/");
+    #ifdef _WIN32
+        return (path.c_str()[1] == ':');
+    #else
+        return starts_with(path, "/");
+    #endif
 }
 
 bool is_dir(const Path& path) {
@@ -510,7 +515,6 @@ bool is_file(const Path& path) {
 }
 
 bool is_link(const Path& path) {
-
 #ifdef __WIN32__
     return GetFileAttributesA(path.c_str()) == FILE_ATTRIBUTE_REPARSE_POINT;
 #else
@@ -528,15 +532,6 @@ bool is_link(const Path& path) {
 Path real_path(const Path& path) {
 #ifdef _arch_dreamcast
     throw std::logic_error("Not implemented");
-#elif __WIN32__
-    constexpr unsigned size = 8192;
-    char buffer[size];
-    DWORD retval = GetFullPathName(path.c_str(), size, buffer, nullptr);
-    if(!retval) {
-        return Path();
-    }
-
-    return buffer;
 #else
     char *real_path = realpath(path.c_str(), NULL);
     if(!real_path) {
@@ -629,7 +624,7 @@ Path expand_user(const Path& path) {
 
 void hide_dir(const Path &path) {
 #ifdef WIN32
-    assert(0 && "Not Implemented");
+    return;//assert(0 && "Not Implemented");
 #elif defined(_arch_dreamcast)
     // No-op on Dreamcast
     return;
@@ -646,9 +641,7 @@ void hide_dir(const Path &path) {
 
 std::vector<Path> list_dir(const Path& path) {
     std::vector<Path> result;
-#ifdef WIN32
-    assert(0 && "Not implemented");
-#else
+
     if(!is_dir(path)) {
 #ifdef _arch_dreamcast
         throw IOError("Path was not a directory");
@@ -657,6 +650,22 @@ std::vector<Path> list_dir(const Path& path) {
 #endif
     }
 
+#ifdef __WIN32__
+    std::string pattern(path.c_str());
+    pattern.append("\\*");
+    WIN32_FIND_DATA data;
+    HANDLE hFind;
+    if((hFind = FindFirstFile(pattern.c_str(), &data)) != INVALID_HANDLE_VALUE) {
+        do {
+            result.push_back(data.cFileName);
+            if(result.back() == "." || result.back() == "..") {
+                result.pop_back();
+            }
+        } while (FindNextFile(hFind, &data) != 0);
+
+        FindClose(hFind);
+    }
+#else
     DIR* dirp = opendir(path.c_str());
     dirent* dp = nullptr;
 
