@@ -17,6 +17,7 @@
     #include <sys/types.h>
     #include <sys/stat.h>
     #include <userenv.h>
+    #include "realpath.h"
 #else
     // Yay POSIX
     #include <utime.h>
@@ -319,17 +320,24 @@ void rename(const Path& old, const Path& new_path) {
 }
 
 std::string temp_dir() {
-#ifdef WIN32
+#ifdef __WIN32__
     assert(0 && "NotImplemented");
 #endif
     return "/tmp";
 }
 
+char *f(const wchar_t *wcs) {
+        char s[256];
+        wcstombs(s,wcs,sizeof(s));
+        return s;
+}
+
 Path exe_path() {
 #ifdef __WIN32__
-    TCHAR szFileName[MAX_PATH + 1];
-    GetModuleFileName(NULL, szFileName, MAX_PATH + 1);
-    return szFileName;
+    HMODULE hModule = GetModuleHandleW(NULL);
+    WCHAR path[MAX_PATH];
+    GetModuleFileNameW(hModule, path, MAX_PATH);
+    return Path(f(path));
 #elif defined(__APPLE__)
     char buff[1024];
     uint32_t size = sizeof(buff);
@@ -411,7 +419,7 @@ Path norm_case(const Path& path) {
 }
 
 Path norm_path(const Path& path) {
-    Path slash = "/";
+    Path slash = Path(SEP);//"/";
     Path dot = ".";
 
     if(path.empty()) {
@@ -484,7 +492,11 @@ Path dir_name(const Path& path) {
 }
 
 bool is_absolute(const Path& path) {
-    return starts_with(path, "/");
+    #ifdef _WIN32
+        return (path.c_str()[1] == ':');
+    #else
+        return starts_with(path, "/");
+    #endif
 }
 
 bool is_dir(const Path& path) {
@@ -520,7 +532,6 @@ bool is_link(const Path& path) {
     } catch(IOError& e) {
         return false;
     }
-
     return S_ISLNK(st.mode);
 #endif
 }
@@ -628,8 +639,8 @@ Path expand_user(const Path& path) {
 }
 
 void hide_dir(const Path &path) {
-#ifdef WIN32
-    assert(0 && "Not Implemented");
+#ifdef __WIN32__
+    return;//assert(0 && "Not Implemented");
 #elif defined(_arch_dreamcast)
     // No-op on Dreamcast
     return;
@@ -646,8 +657,20 @@ void hide_dir(const Path &path) {
 
 std::vector<Path> list_dir(const Path& path) {
     std::vector<Path> result;
-#ifdef WIN32
-    assert(0 && "Not implemented");
+#ifdef __WIN32__
+    std::string pattern(path.c_str());
+    pattern.append("\\*");
+    WIN32_FIND_DATA data;
+    HANDLE hFind;
+    if ((hFind = FindFirstFile(pattern.c_str(), &data)) != INVALID_HANDLE_VALUE) {
+        do {
+            result.push_back(data.cFileName);
+            if(result.back() == "." || result.back() == "..") {
+            result.pop_back();
+             }   
+        } while (FindNextFile(hFind, &data) != 0);
+        FindClose(hFind);
+    }
 #else
     if(!is_dir(path)) {
 #ifdef _arch_dreamcast
