@@ -6,6 +6,8 @@
 #include <string>
 #include <iostream>
 #include <cassert>
+#include <algorithm>
+
 #include "kfs.h"
 
 #ifdef _arch_dreamcast
@@ -32,6 +34,20 @@
 
 
 namespace kfs {
+
+static std::string str_replace(const std::string& str, char a, char b) {
+    std::string result;
+
+    std::for_each(str.begin(), str.end(), [&](char x) {
+        if(x == a) {
+            result += b;
+        } else {
+            result += x;
+        }
+    });
+
+    return result;
+}
 
 static bool starts_with(const Path& p, const std::string& thing) {
     return p.find(thing) == 0;
@@ -396,6 +412,7 @@ Path join(const std::vector<Path>& parts) {
 
 Path abs_path(const Path& p) {
     Path path = p;
+
     if(!is_absolute(p)) {
         Path cwd = get_cwd();
         path = join(cwd, p);
@@ -411,7 +428,135 @@ Path norm_case(const Path& path) {
     return path;
 }
 
-Path norm_path(const Path& path) {
+std::pair<Path, Path> split_drive(const Path& p) {
+    /*Split a pathname into drive/UNC sharepoint and relative path specifiers.
+    Returns a 2-tuple (drive_or_unc, path); either part may be empty.
+
+    If you assign
+        result = splitdrive(p)
+    It is always true that:
+        result[0] + result[1] == p
+
+    If the path contained a drive letter, drive_or_unc will contain everything
+    up to and including the colon.  e.g. splitdrive("c:/dir") returns ("c:", "/dir")
+
+    If the path contained a UNC path, the drive_or_unc will contain the host name
+    and share up to but not including the fourth directory SEParator character.
+    e.g. splitdrive("//host/computer/dir") returns ("//host/computer", "/dir")
+
+    Paths cannot contain both a drive letter and a UNC path.
+    */
+
+    if(p.size() > 1) {
+        auto normp = str_replace(p, '/', '\\');
+        if(normp[0] == '\\' && normp[1] == '\\' && normp[2] != '\\') {
+            // UNC path
+            auto index = normp.find(SEP, 2);
+            if(index == std::string::npos) {
+                return std::make_pair("", p);
+            }
+
+            auto index2 = normp.find(SEP, index + 1);
+            if(index2 == index + 1) {
+                //# a UNC path can't have two slashes in a row
+                //# (after the initial two)
+                return std::make_pair("", p);
+            }
+
+            if(index2 == std::string::npos) {
+                index2 = p.size();
+            }
+
+            return std::make_pair(
+                p.substr(0, index2),
+                p.substr(index2, std::string::npos)
+            );
+        }
+
+        if(normp[1] == ':') {
+            return std::make_pair(
+                p.substr(0, 2),
+                p.substr(2, std::string::npos)
+            );
+        }
+    }
+
+    return std::make_pair("", p);
+}
+
+#ifdef __WIN32__
+static Path nt_norm_path(Path path) {
+    char backslash = '\\';
+
+    if(starts_with(path, "\\\\.\\") || starts_with(path, "\\\\?\\")) {
+        /* in the case of paths with these prefixes:
+        \\.\ -> device names
+        \\?\ -> literal paths
+        do not do any normalization, but return the path unchanged */
+        return path;
+    }
+
+    path = str_replace(path, '/', '\\');
+
+    auto parts = split_drive(path);
+    auto prefix = parts.first;
+    path = parts.second;
+
+    /*
+    # We need to be careful here. If the prefix is empty, and the path starts
+    # with a backslash, it could either be an absolute path on the current
+    # drive (\dir1\dir2\file) or a UNC filename (\\server\mount\dir1\file). It
+    # is therefore imperative NOT to collapse multiple backslashes blindly in
+    # that case.
+    # The code below preserves multiple backslashes when there is no drive
+    # letter. This means that the invalid filename \\\a\b is preserved
+    # unchanged, where a\\\b is normalised to a\b. It's not clear that there
+    # is any better behaviour for such edge cases. */
+    if(prefix.empty()) {
+        while(path[0] == '\\') {
+            prefix = prefix + backslash;
+            path = path.substr(1, std::string::npos);
+        }
+
+    } else {
+        // We have a drive letter - collapse initial backslashes
+        if(starts_with(path, "\\")) {
+            prefix = prefix + backslash;
+            path = path.substr(1, std::string::npos);
+        }
+    }
+    auto comps = str_split(path, "\\");
+
+    std::vector<Path> final;
+
+    for(auto i = 0u; i < comps.size(); ++i) {
+        if(comps[i] == "." || comps[i] == "") {
+            continue;
+        } else if(comps[i] == "..") {
+            if(i > 0 && comps[i - 1] != "..") {
+                final.pop_back();
+                continue;
+            } else if(i == 0 && prefix[prefix.size() - 1] == '\\') {
+                continue;
+            } else {
+                final.push_back(comps[i]);
+            }
+        } else {
+            final.push_back(comps[i]);
+        }
+    }
+
+    if(prefix.empty() && final.empty()) {
+        final.push_back(".");
+    }
+
+    return prefix + str_join("\\", final);
+}
+#endif
+
+
+#ifndef __WIN32__
+static Path posix_norm_path(const Path& path) {
     Path slash = Path(SEP);
     Path dot = ".";
 
@@ -450,6 +595,15 @@ Path norm_path(const Path& path) {
     }
 
     return final_path.empty() ? dot : final_path;
+}
+#endif
+
+Path norm_path(const Path& path) {
+#ifdef __WIN32__
+    return nt_norm_path(path);
+#else
+    return posix_norm_path(path);
+#endif
 }
 
 std::pair<Path, Path> split(const Path& path) {
@@ -690,15 +844,15 @@ std::string read_file_contents(const Path& path) {
 
 
 std::pair<Path, Path> split_ext(const Path& path) {
-    auto sep_index = path.rfind(SEP);
+    auto SEP_index = path.rfind(SEP);
     auto dot_index = path.rfind(".");
 
-    if(sep_index == Path::npos) {
-        sep_index = -1;
+    if(SEP_index == Path::npos) {
+        SEP_index = -1;
     }
 
-    if(dot_index > sep_index) {
-        auto filename_index = sep_index + 1;
+    if(dot_index > SEP_index) {
+        auto filename_index = SEP_index + 1;
 
         while(filename_index < dot_index) {
             if(path[filename_index] != '.') {
