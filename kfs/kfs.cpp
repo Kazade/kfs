@@ -122,13 +122,13 @@ static std::vector<std::string> common_prefix(const std::vector<std::string>& lh
 // =================== END UTILITY FUNCTIONS ======================================================
 // ================================================================================================
 
-Stat lstat(const Path& path) {
+std::pair<Stat, bool> lstat(const Path& path) {
     Stat ret;
 
 #ifdef __WIN32__
     struct _stat result;
     if(_stat(path.c_str(), &result) == -1) {
-        throw IOError(errno);
+        return std::make_pair(ret, false);
     }
 
     ret.atime = result.st_atime;
@@ -146,7 +146,7 @@ Stat lstat(const Path& path) {
     struct ::stat result;
 
     if(::stat(path.c_str(), &result) == -1) {
-        throw IOError(errno);
+        return std::make_pair(ret, false);
     }
 
     ret.atime = result.st_atime;
@@ -161,7 +161,7 @@ Stat lstat(const Path& path) {
     ret.size = result.st_size;
     ret.uid = result.st_uid;
 #endif
-    return ret;
+    return std::make_pair(ret, true);
 }
 
 void touch(const Path& path) {
@@ -198,8 +198,12 @@ void touch(const Path& path) {
 
     struct utimbuf new_times;
     auto st = kfs::lstat(path);
+    if(st.second) {
+        new_times.actime = st.first.atime;
+    } else {
+        std::cerr << "Unable to read atime" << std::endl;
+    }
 
-    new_times.actime = st.atime;
     new_times.modtime = time(NULL);
     utime(path.c_str(), &new_times);
 #endif
@@ -620,13 +624,7 @@ std::pair<Path, Path> split(const Path& path) {
 }
 
 bool exists(const Path &path) {
-    try {
-        lstat(path);
-    } catch(IOError& e) {
-        return false;
-    }
-
-    return true;
+    return lstat(path).second;
 }
 
 Path dir_name(const Path& path) {
@@ -647,39 +645,33 @@ bool is_absolute(const Path& path) {
 }
 
 bool is_dir(const Path& path) {
-    Stat st;
-    try {
-        st = lstat(path);
-    } catch(IOError& e) {
+    auto st = lstat(path);
+    if(st.second) {
+        return S_ISDIR(st.first.mode);
+    } else {
         return false;
     }
-
-    return S_ISDIR(st.mode);
 }
 
 bool is_file(const Path& path) {
-    Stat st;
-    try {
-        st = lstat(path);
-    } catch(IOError& e) {
+    auto st = lstat(path);
+    if(st.second) {
+        return S_ISREG(st.first.mode);
+    } else {
         return false;
     }
-
-    return S_ISREG(st.mode);
 }
 
 bool is_link(const Path& path) {
 #ifdef __WIN32__
     return GetFileAttributesA(path.c_str()) == FILE_ATTRIBUTE_REPARSE_POINT;
 #else
-    Stat st;
-    try {
-        st = lstat(path);
-    } catch(IOError& e) {
+    auto st = lstat(path);
+    if(st.second) {
+        return S_ISLNK(st.first.mode);
+    } else {
         return false;
     }
-
-    return S_ISLNK(st.mode);
 #endif
 }
 

@@ -60,7 +60,7 @@ struct Stat {
     uint32_t  ctime;   /* time of last status change */
 };
 
-Stat lstat(const Path& path);
+std::pair<Stat, bool> lstat(const Path& path);
 
 void touch(const Path& path);
 void rename(const Path& old, const std::string& new_path);
