@@ -165,7 +165,7 @@ std::pair<Stat, bool> lstat(const Path& path) {
 }
 
 void touch(const Path& path) {
-#ifdef _arch_dreamcast
+#if defined(_arch_dreamcast) || defined(__PSP__)
     throw std::logic_error("Not implemented");
 #elif __WIN32__
     auto handle = CreateFile(
@@ -237,6 +237,8 @@ void make_link(const Path& source, const Path& dest) {
     if(ret != 0) {
         throw IOError("Unable to make symlink");
     }
+#elif defined(__PSP__)
+    throw std::logic_error("Not Implemented");
 #elif defined(__WIN32__)
     if(!CreateSymbolicLinkA(source.c_str(), dest.c_str(), 0) == 0) {
         throw IOError(GetLastError());
@@ -267,7 +269,7 @@ void make_dirs(const Path &path, Mode mode) {
             make_dirs(head, mode);
         } catch(kfs::IOError& e) {
             //Only ignore errors if someone already created the directory
-            if(e.err != EEXIST) {                
+            if(e.err != EEXIST) {
                 throw;
             }
         }
@@ -365,6 +367,9 @@ Path exe_path() {
      * say that it's in the root of the tree (it is essentially)
      */
     return "/1ST_READ.BIN";
+#elif defined(__PSP__)
+    /* FIXME: This isn't ideal, could possibly result in the wrong thing */
+    return std::string(get_cwd()) + "/EBOOT.PBP";
 #else
     char buff[1024];
     ssize_t len = ::readlink("/proc/self/exe", buff, sizeof(buff)-1);
