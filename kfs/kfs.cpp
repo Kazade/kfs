@@ -14,6 +14,12 @@
     #include <kos.h>
     #include <dirent.h>
     #include <errno.h>
+#elif defined(__PSP__)
+    #include <utime.h>
+    #include <unistd.h>
+    #include <sys/types.h>
+    #include <dirent.h>
+    #include <pspiofilemgr.h>
 #elif defined(__WIN32__)
     #include <windows.h>
     #include <sys/types.h>
@@ -122,6 +128,19 @@ static std::vector<std::string> common_prefix(const std::vector<std::string>& lh
 // =================== END UTILITY FUNCTIONS ======================================================
 // ================================================================================================
 
+#ifdef __PSP__
+uint32_t psp_time_to_epoch(ScePspDateTime pt) {
+    struct tm t = {0};  // Initalize to all 0's
+    t.tm_year = pt.year;  // This is year-1900, so 112 = 2012
+    t.tm_mon = pt.month;
+    t.tm_mday = pt.day;
+    t.tm_hour = pt.hour;
+    t.tm_min = pt.minute;
+    t.tm_sec = pt.second;
+    return mktime(&t);
+}
+#endif
+
 std::pair<Stat, bool> lstat(const Path& path) {
     Stat ret;
 
@@ -142,6 +161,18 @@ std::pair<Stat, bool> lstat(const Path& path) {
     ret.rdev = result.st_rdev;
     ret.size = result.st_size;
     ret.uid = result.st_uid;
+#elif defined(__PSP__)
+    SceIoStat s;
+    if(sceIoGetstat(path.c_str(), &s) < 0) {
+        return std::make_pair(ret, false);
+    }
+
+    ret.atime = psp_time_to_epoch(s.st_atime);
+    ret.ctime = psp_time_to_epoch(s.st_ctime);
+    ret.mtime = psp_time_to_epoch(s.st_mtime);
+    ret.size = s.st_size;
+
+    // FIXME: Other things!
 #else
     struct ::stat result;
 
