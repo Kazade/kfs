@@ -60,10 +60,12 @@ static bool starts_with(const Path& p, const std::string& thing) {
 }
 
 static std::string slice(const std::string& input, uint32_t start, void* end=nullptr) {
+    (void) (end);
     return std::string(input.begin() + start, input.end());
 }
 
 static std::string slice(const std::string &input, void* start, uint32_t end) {
+    (void) (start);
     return std::string(input.begin(), input.begin() + end);
 }
 
@@ -130,13 +132,15 @@ static std::vector<std::string> common_prefix(const std::vector<std::string>& lh
 
 #ifdef __PSP__
 uint32_t psp_time_to_epoch(ScePspDateTime pt) {
-    struct tm t = {0};  // Initalize to all 0's
+    struct tm t;
     t.tm_year = pt.year;  // This is year-1900, so 112 = 2012
     t.tm_mon = pt.month;
     t.tm_mday = pt.day;
     t.tm_hour = pt.hour;
     t.tm_min = pt.minute;
     t.tm_sec = pt.second;
+    t.tm_isdst = 0;
+    t.tm_yday = t.tm_wday = 0;
     return mktime(&t);
 }
 #endif
@@ -197,6 +201,7 @@ std::pair<Stat, bool> lstat(const Path& path) {
 
 void touch(const Path& path) {
 #if defined(_arch_dreamcast) || defined(__PSP__)
+    (void) (path);
     throw std::logic_error("Not implemented");
 #elif __WIN32__
     auto handle = CreateFile(
@@ -269,6 +274,8 @@ void make_link(const Path& source, const Path& dest) {
         throw IOError("Unable to make symlink");
     }
 #elif defined(__PSP__)
+    (void) (source);
+    (void) (dest);
     throw std::logic_error("Not Implemented");
 #elif defined(__WIN32__)
     if(!CreateSymbolicLinkA(source.c_str(), dest.c_str(), 0) == 0) {
