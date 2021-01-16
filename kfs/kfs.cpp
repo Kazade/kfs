@@ -683,7 +683,7 @@ bool is_absolute(const Path& path) {
     #ifdef _WIN32
         return (path.c_str()[1] == ':');
     #elif defined(__PSP__)
-        return starts_with(path, "umd0:") || starts_with(path, "ms0:") || starts_with(path, "disc0:");
+        return starts_with(path, "umd0:") || starts_with(path, "ms0:") || starts_with(path, "disc0:") | starts_with(path, "host0:");
     #else
         return starts_with(path, "/");
     #endif
