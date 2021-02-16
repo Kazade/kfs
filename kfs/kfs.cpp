@@ -381,9 +381,12 @@ void rename(const Path& old, const Path& new_path) {
 
 std::string temp_dir() {
 #ifdef WIN32
-    assert(0 && "NotImplemented");
-#endif
+    TCHAR temp_path_buffer[MAX_PATH];
+    GetTempPath(MAX_PATH, temp_path_buffer);
+    return std::string(temp_path_buffer);
+#else
     return "/tmp";
+#endif
 }
 
 Path exe_path() {
